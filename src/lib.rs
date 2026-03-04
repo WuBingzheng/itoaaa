@@ -1,40 +1,78 @@
-#[inline(always)]
 pub fn dump(n: impl Integer, buf: &mut [u8]) -> Result<usize, usize> {
-    let len = n.dump_len();
+    let (neg, abs) = n.unsigned_abs();
+    let len = neg + abs.dump_len();
     if buf.len() < len {
         return Err(len);
     }
 
+    // SAFETY: buf[neg..len].len() == n.dump_len()
     unsafe {
-        // SAFETY: `buf[..len]` fits.
-        n.unchecked_dump(&mut buf[..len]);
+        if neg != 0 {
+            *buf.get_unchecked_mut(0) = b'-';
+        }
+        abs.unchecked_dump(&mut buf[neg..len]);
     }
     Ok(len)
 }
 
-#[inline(always)]
 pub fn dump_to_string(n: impl Integer, s: &mut String) {
-    let dump_len = n.dump_len();
+    let (neg, abs) = n.unsigned_abs();
+    let dump_len = neg + abs.dump_len();
 
-    // SAFETY: all valid charactors.
-    // SAFETY: `v[origin_len..]` fits.
+    // SAFETY: digits are valid charactors
+    // SAFETY: v[neg+origin_len..].len() == n.dump_len()
     unsafe {
         let v = s.as_mut_vec();
         let origin_len = v.len();
         v.reserve(dump_len);
         v.set_len(origin_len + dump_len);
-        n.unchecked_dump(&mut v[origin_len..]);
+        if neg != 0 {
+            *v.get_unchecked_mut(origin_len) = b'-';
+        }
+        abs.unchecked_dump(&mut v[neg + origin_len..]);
     }
 }
 
-pub trait Integer: Copy {
+pub trait Unsigned: Copy {
     fn dump_len(self) -> usize;
     unsafe fn unchecked_dump(self, buf: &mut [u8]);
 }
 
+pub trait Integer {
+    type Unsigned: Unsigned;
+    fn unsigned_abs(self) -> (usize, Self::Unsigned);
+}
+
 macro_rules! impl_integer {
+    ($signed:ty, $unsigned:ty) => {
+        impl Integer for $signed {
+            type Unsigned = $unsigned;
+            fn unsigned_abs(self) -> (usize, Self::Unsigned) {
+                if self < 0 {
+                    (1, (!self).wrapping_add(1) as $unsigned)
+                } else {
+                    (0, self as $unsigned)
+                }
+            }
+        }
+
+        impl Integer for $unsigned {
+            type Unsigned = $unsigned;
+            fn unsigned_abs(self) -> (usize, Self::Unsigned) {
+                (0, self)
+            }
+        }
+    };
+}
+
+impl_integer!(i16, u16);
+impl_integer!(i32, u32);
+impl_integer!(i64, u64);
+
+// general implements for u16, u32, and u64
+macro_rules! impl_unsigned {
     ($ty:ty, $bit_digits:expr) => {
-        impl Integer for $ty {
+        impl Unsigned for $ty {
             fn dump_len(self) -> usize {
                 let zeros = self.leading_zeros();
                 let bd = unsafe { $bit_digits.get_unchecked(zeros as usize) };
@@ -89,9 +127,9 @@ macro_rules! impl_integer {
     };
 }
 
-impl_integer!(u64, BITDIGIT_U64);
-impl_integer!(u32, BITDIGIT_U32);
-impl_integer!(u16, BITDIGIT_U16);
+impl_unsigned!(u64, BITDIGIT_U64);
+impl_unsigned!(u32, BITDIGIT_U32);
+impl_unsigned!(u16, BITDIGIT_U16);
 
 struct BitDigit<T: PartialOrd>(T, usize);
 
