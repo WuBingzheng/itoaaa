@@ -1,3 +1,4 @@
+#[inline]
 pub fn dump(n: impl Integer, buf: &mut [u8]) -> Result<usize, usize> {
     let (neg, abs) = n.unsigned_abs();
     let len = neg + abs.dump_len();
@@ -15,6 +16,7 @@ pub fn dump(n: impl Integer, buf: &mut [u8]) -> Result<usize, usize> {
     Ok(len)
 }
 
+#[inline]
 pub fn dump_to_string(n: impl Integer, s: &mut String) {
     let (neg, abs) = n.unsigned_abs();
     let dump_len = neg + abs.dump_len();
