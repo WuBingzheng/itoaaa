@@ -2,28 +2,11 @@ use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use std::fmt::Write;
 use std::hint::black_box;
 
-fn bench_encode(c: &mut Criterion) {
-    let mut group = c.benchmark_group("encode");
-
-    let inputs = vec![
-        0x0_u64,
-        0x1,
-        0x1f,
-        0x12f,
-        0x1f2f,
-        0x1f2f3,
-        0x1f2f3f,
-        0x1f2f3f4,
-        0x1f2f3f4f,
-        0x1f2f3f4f5,
-        0x1f2f3f4f5f,
-        0x1f2f3f4f5f6,
-        0x1f2f3f4f5f6f,
-        0x1f2f3f4f5f6f7,
-        0x1f2f3f4f5f6f7f,
-        0x1f2f3f4f5f6f7f8,
-        0x1f2f3f4f5f6f7f8f,
-    ];
+fn bench_encode<T>(c: &mut Criterion, inputs: &[T], name: &str)
+where
+    T: std::fmt::Display + itoa::Integer + itoa_slice::Integer,
+{
+    let mut group = c.benchmark_group(name);
 
     let mut s = String::with_capacity(100);
     let mut buf: [u8; 100] = [0; 100];
@@ -40,7 +23,7 @@ fn bench_encode(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("itoa", i), n, |b, n| {
             b.iter(|| {
                 let mut buffer = itoa::Buffer::new();
-                black_box(buffer.format(*n as u64));
+                black_box(buffer.format(*n));
             })
         });
 
@@ -74,7 +57,54 @@ fn bench_encode(c: &mut Criterion) {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    bench_encode(c);
+    let inputs = vec![
+        0_i128,
+        1,
+        12,
+        123,
+        1234,
+        12345,
+        123456,
+        1234567,
+        12345678,
+        123456789,
+        1234567890,
+        12345678901,
+        123456789012,
+        1234567890123,
+        12345678901234,
+        123456789012345,
+        1234567890123456,
+        12345678901234567,
+        123456789012345678,
+        1234567890123456789,
+        12345678901234567890,
+        123456789012345678901,
+        1234567890123456789012,
+        12345678901234567890123,
+        123456789012345678901234,
+        1234567890123456789012345,
+        12345678901234567890123456,
+        123456789012345678901234567,
+        1234567890123456789012345678,
+    ];
+
+    let inputs_u32: Vec<u32> = inputs[..11].iter().map(|x| *x as u32).collect();
+    bench_encode(c, &inputs_u32, "u32");
+
+    let inputs_i32: Vec<i32> = inputs[..11].iter().map(|x| -(*x as i32)).collect();
+    bench_encode(c, &inputs_i32, "i32");
+
+    let inputs_u64: Vec<u64> = inputs[..29].iter().map(|x| *x as u64).collect();
+    bench_encode(c, &inputs_u64, "u64");
+
+    let inputs_i64: Vec<i64> = inputs[..29].iter().map(|x| -(*x as i64)).collect();
+    bench_encode(c, &inputs_i64, "i64");
+
+    bench_encode(c, &inputs, "u128");
+
+    let inputs_i128: Vec<i128> = inputs.iter().map(|x| -(*x as i128)).collect();
+    bench_encode(c, &inputs_i128, "i128");
 }
 
 criterion_group!(benches, criterion_benchmark);
