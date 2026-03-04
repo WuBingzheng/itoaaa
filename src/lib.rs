@@ -274,7 +274,10 @@ unsafe fn digit(p: usize) -> u8 {
 mod tests {
     use super::*;
 
-    fn test(n: u64) {
+    fn test<T>(n: T)
+    where
+        T: Integer + std::fmt::Display + Copy,
+    {
         let mut buf: [u8; 20] = [0; 20];
         let pos = dump(n, &mut buf).unwrap();
         assert_eq!(str::from_utf8(&buf[..pos]).unwrap(), format!("{n}"));
@@ -283,44 +286,18 @@ mod tests {
     #[test]
     fn it_works() {
         test(0);
-        test(1);
-        test(12);
-        test(123);
-        test(1234);
-        test(12345);
-        test(123456);
-        test(1234567);
-        test(12345678);
-        test(123456789);
-        test(1234567890);
-        test(12345678901);
-        test(123456789012);
-        test(1234567890123);
-        test(12345678901234);
-        test(123456789012345);
-        test(1234567890123456);
-        test(12345678901234567);
-        test(123456789012345678);
-        test(1234567890123456789);
-        test(12345678901234567890);
-        test(9);
-        test(92);
-        test(923);
-        test(9234);
-        test(92345);
-        test(923456);
-        test(9234567);
-        test(92345678);
-        test(923456789);
-        test(9234567890);
-        test(92345678901);
-        test(923456789012);
-        test(9234567890123);
-        test(92345678901234);
-        test(923456789012345);
-        test(9234567890123456);
-        test(92345678901234567);
-        test(923456789012345678);
-        test(9234567890123456789);
+        test(i64::MIN);
+        test(i64::MAX);
+        test(-i64::MAX);
+
+        let mut n = u64::MAX;
+        while n != 0 {
+            test(n);
+            if let Ok(i) = i64::try_from(n) {
+                test(i);
+                test(-i);
+            }
+            n /= 10;
+        }
     }
 }
