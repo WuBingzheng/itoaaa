@@ -73,33 +73,6 @@ impl_integer!(i32, u32);
 impl_integer!(i64, u64);
 impl_integer!(i128, u128);
 
-impl Unsigned for u8 {
-    #[inline]
-    fn dump_len(self) -> usize {
-        let zeros = self.leading_zeros();
-        let bd = unsafe { BITDIGIT_U8.get_unchecked(zeros as usize) };
-        bd.count_digits(self)
-    }
-
-    #[inline]
-    unsafe fn unchecked_dump(self, buf: &mut [u8]) {
-        let mut n = self;
-        let mut offset = buf.len() - 1;
-        loop {
-            let remain = n as usize % 10;
-            unsafe {
-                *buf.get_unchecked_mut(offset) = digit(remain);
-            }
-            offset -= 1;
-            n /= 10;
-            if n == 0 {
-                break;
-            }
-        }
-        debug_assert_eq!(offset, 0);
-    }
-}
-
 impl Unsigned for u128 {
     #[inline]
     fn dump_len(self) -> usize {
@@ -108,42 +81,54 @@ impl Unsigned for u128 {
         bd.count_digits(self)
     }
 
+    #[inline]
     unsafe fn unchecked_dump(self, buf: &mut [u8]) {
         if let Ok(n64) = u64::try_from(self) {
             return unsafe { u64::unchecked_dump(n64, buf) };
         }
 
         // Take the 16 least-significant decimals.
-        let quot_1e16 = self / 10_u128.pow(16);
-        let mod_1e16 = self % 10_u128.pow(16);
-        debug_assert_ne!(quot_1e16, 0);
+        let (quot_1e16, mod_1e16) = div_rem_1e16(self);
+        write_e16(mod_1e16, buf);
 
-        let mut remain = mod_1e16 as u64;
-        let mut offset = buf.len();
+        let end = buf.len() - 16;
 
-        // Format per four digits from the lookup table.
-        for _ in 0..4 {
-            offset -= 4;
-
-            // pull two pairs
-            let quad = remain as usize % 1_00_00;
-            remain /= 1_00_00;
-
-            let pair1 = quad / 100;
-            let pair2 = quad % 100;
-            unsafe {
-                *buf.get_unchecked_mut(offset) = digit(pair1 * 2);
-                *buf.get_unchecked_mut(offset + 1) = digit(pair1 * 2 + 1);
-                *buf.get_unchecked_mut(offset + 2) = digit(pair2 * 2);
-                *buf.get_unchecked_mut(offset + 3) = digit(pair2 * 2 + 1);
-            }
+        // check again
+        if let Ok(n64) = u64::try_from(quot_1e16) {
+            return unsafe { u64::unchecked_dump(n64, &mut buf[..end]) };
         }
 
-        // Handle quot_1e16
-        unsafe { Self::unchecked_dump(quot_1e16, &mut buf[..offset]) }
+        // Take the 16 least-significant decimals.
+        let (quot_1e16, mod_1e16) = div_rem_1e16(quot_1e16);
+        write_e16(mod_1e16, &mut buf[..end]);
+
+        // last
+        let end = buf.len() - 32;
+        unsafe { u64::unchecked_dump(quot_1e16 as u64, &mut buf[..end]) }
     }
 }
 
+fn write_e16(mut remain: u64, buf: &mut [u8]) {
+    let mut offset = buf.len();
+
+    // Format per four digits from the lookup table.
+    for _ in 0..4 {
+        offset -= 4;
+
+        // pull two pairs
+        let quad = remain as usize % 1_00_00;
+        remain /= 1_00_00;
+
+        let pair1 = quad / 100;
+        let pair2 = quad % 100;
+        unsafe {
+            *buf.get_unchecked_mut(offset) = digit(pair1 * 2);
+            *buf.get_unchecked_mut(offset + 1) = digit(pair1 * 2 + 1);
+            *buf.get_unchecked_mut(offset + 2) = digit(pair2 * 2);
+            *buf.get_unchecked_mut(offset + 3) = digit(pair2 * 2 + 1);
+        }
+    }
+}
 // general implements for u16, u32, and u64
 macro_rules! impl_unsigned {
     ($ty:ty, $bit_digits:expr) => {
@@ -157,16 +142,18 @@ macro_rules! impl_unsigned {
 
             // SAFETY: The caller must make sure: buf.len() == self.dump_len()
             #[inline]
+            #[allow(overflowing_literals)]
+            #[allow(unused_comparisons)]
             unsafe fn unchecked_dump(self: $ty, buf: &mut [u8]) {
                 let mut offset = buf.len();
                 let mut remain = self;
 
                 // Format per two digits from the lookup table.
-                while remain >= 1000 {
+                while core::mem::size_of::<Self>() > 1 && remain >= 1000 {
                     offset -= 4;
 
                     // pull two pairs
-                    let quad = remain as usize % 10000;
+                    let quad = (remain % 10000) as usize;
                     remain /= 10000;
 
                     let pair1 = quad / 100;
@@ -206,6 +193,9 @@ macro_rules! impl_unsigned {
 impl_unsigned!(u64, BITDIGIT_U64);
 impl_unsigned!(u32, BITDIGIT_U32);
 impl_unsigned!(u16, BITDIGIT_U16);
+impl_unsigned!(u8, BITDIGIT_U8);
+
+// === BitDigit ===
 
 struct BitDigit<T: PartialOrd>(T, usize);
 
@@ -497,6 +487,43 @@ unsafe fn digit(p: usize) -> u8 {
     unsafe { *DECIMAL_PAIRS.get_unchecked(p) }
 }
 
+// === u128 utils ===
+
+fn div_rem_1e16(n: u128) -> (u128, u64) {
+    const D: u128 = 1_0000_0000_0000_0000;
+    // The check inlines well with the caller flow.
+    if n < D {
+        return (0, n as u64);
+    }
+
+    // These constant values are computed with the CHOOSE_MULTIPLIER procedure
+    // from the Granlund & Montgomery paper, using N=128, prec=128 and d=1E16.
+    const M_HIGH: u128 = 76624777043294442917917351357515459181;
+    const SH_POST: u8 = 51;
+
+    // n.widening_mul(M_HIGH).1 >> SH_POST
+    let quot = u128_mulhi(n, M_HIGH) >> SH_POST;
+    let rem = n - quot * D;
+    (quot, rem as u64)
+}
+
+fn u128_mulhi(x: u128, y: u128) -> u128 {
+    let x_lo = x as u64;
+    let x_hi = (x >> 64) as u64;
+    let y_lo = y as u64;
+    let y_hi = (y >> 64) as u64;
+
+    // handle possibility of overflow
+    let carry = (u128::from(x_lo) * u128::from(y_lo)) >> 64;
+    let m = u128::from(x_lo) * u128::from(y_hi) + carry;
+    let high1 = m >> 64;
+
+    let m_lo = m as u64;
+    let high2 = (u128::from(x_hi) * u128::from(y_lo) + u128::from(m_lo)) >> 64;
+
+    u128::from(x_hi) * u128::from(y_hi) + high1 + high2
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -519,6 +546,16 @@ mod tests {
         test(i128::MIN);
         test(i128::MAX);
         test(-i128::MAX);
+
+        let mut n = u8::MAX;
+        while n != 0 {
+            test(n);
+            if let Ok(i) = i8::try_from(n) {
+                test(i);
+                test(-i);
+            }
+            n /= 10;
+        }
 
         let mut n = u64::MAX;
         while n != 0 {
