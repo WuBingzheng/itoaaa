@@ -83,52 +83,40 @@ impl Unsigned for u128 {
 
     #[inline]
     unsafe fn unchecked_dump(self, buf: &mut [u8]) {
-        if let Ok(n64) = u64::try_from(self) {
-            return unsafe { u64::unchecked_dump(n64, buf) };
-        }
+        let mut offset = buf.len();
+        let mut remain = self;
 
-        // Take the 16 least-significant decimals.
-        let (quot_1e16, mod_1e16) = div_rem_1e16(self);
-        write_e16(mod_1e16, buf);
+        loop {
+            if let Ok(n64) = u64::try_from(remain) {
+                unsafe { n64.unchecked_dump(&mut buf[..offset]) };
+                return;
+            }
 
-        let end = buf.len() - 16;
+            // Take the 16 least-significant decimals.
+            let (quot_1e16, mut mod_1e16) = div_rem_1e16(remain);
 
-        // check again
-        if let Ok(n64) = u64::try_from(quot_1e16) {
-            return unsafe { u64::unchecked_dump(n64, &mut buf[..end]) };
-        }
+            for _ in 0..4 {
+                offset -= 4;
 
-        // Take the 16 least-significant decimals.
-        let (quot_1e16, mod_1e16) = div_rem_1e16(quot_1e16);
-        write_e16(mod_1e16, &mut buf[..end]);
+                // pull two pairs
+                let quad = (mod_1e16 % 1_00_00) as usize;
+                mod_1e16 /= 1_00_00;
 
-        // last
-        let end = buf.len() - 32;
-        unsafe { u64::unchecked_dump(quot_1e16 as u64, &mut buf[..end]) }
-    }
-}
+                let pair1 = quad / 100;
+                let pair2 = quad % 100;
+                unsafe {
+                    *buf.get_unchecked_mut(offset) = digit(pair1 * 2);
+                    *buf.get_unchecked_mut(offset + 1) = digit(pair1 * 2 + 1);
+                    *buf.get_unchecked_mut(offset + 2) = digit(pair2 * 2);
+                    *buf.get_unchecked_mut(offset + 3) = digit(pair2 * 2 + 1);
+                }
+            }
 
-fn write_e16(mut remain: u64, buf: &mut [u8]) {
-    let mut offset = buf.len();
-
-    // Format per four digits from the lookup table.
-    for _ in 0..4 {
-        offset -= 4;
-
-        // pull two pairs
-        let quad = remain as usize % 1_00_00;
-        remain /= 1_00_00;
-
-        let pair1 = quad / 100;
-        let pair2 = quad % 100;
-        unsafe {
-            *buf.get_unchecked_mut(offset) = digit(pair1 * 2);
-            *buf.get_unchecked_mut(offset + 1) = digit(pair1 * 2 + 1);
-            *buf.get_unchecked_mut(offset + 2) = digit(pair2 * 2);
-            *buf.get_unchecked_mut(offset + 3) = digit(pair2 * 2 + 1);
+            remain = quot_1e16;
         }
     }
 }
+
 // general implements for u16, u32, and u64
 macro_rules! impl_unsigned {
     ($ty:ty, $bit_digits:expr) => {
@@ -491,10 +479,6 @@ unsafe fn digit(p: usize) -> u8 {
 
 fn div_rem_1e16(n: u128) -> (u128, u64) {
     const D: u128 = 1_0000_0000_0000_0000;
-    // The check inlines well with the caller flow.
-    if n < D {
-        return (0, n as u64);
-    }
 
     // These constant values are computed with the CHOOSE_MULTIPLIER procedure
     // from the Granlund & Montgomery paper, using N=128, prec=128 and d=1E16.
