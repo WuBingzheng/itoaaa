@@ -13,7 +13,7 @@ where
     v.resize(100, 0);
 
     for (i, n) in inputs.iter().enumerate() {
-        group.bench_with_input(BenchmarkId::new("0.std", i), n, |b, n| {
+        group.bench_with_input(BenchmarkId::new("std", i), n, |b, n| {
             b.iter(|| {
                 s.clear();
                 write!(&mut s, "{}", *n).unwrap();
@@ -21,26 +21,22 @@ where
             })
         });
 
-        group.bench_with_input(BenchmarkId::new("1.1.itoa", i), n, |b, n| {
+        group.bench_with_input(BenchmarkId::new("itoa", i), n, |b, n| {
             b.iter(|| {
                 let mut buffer = itoa::Buffer::new();
                 black_box(buffer.format(*n));
             })
         });
 
-        group.bench_with_input(
-            BenchmarkId::new("2.1.itoap: write_to_ptr()", i),
-            n,
-            |b, n| {
-                b.iter(|| {
-                    let pos = unsafe { itoap::write_to_ptr(v.as_mut_ptr() as *mut u8, *n) };
-                    black_box(&v[..pos]);
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("itoap::write_to_ptr()", i), n, |b, n| {
+            b.iter(|| {
+                let pos = unsafe { itoap::write_to_ptr(v.as_mut_ptr() as *mut u8, *n) };
+                black_box(&v[..pos]);
+            })
+        });
 
         group.bench_with_input(
-            BenchmarkId::new("2.2.itoap: write_to_string()", i),
+            BenchmarkId::new("itoap::write_to_string()", i),
             n,
             |b, n| {
                 b.iter(|| {
@@ -52,7 +48,7 @@ where
         );
 
         group.bench_with_input(
-            BenchmarkId::new("3.1.itoaaa: write_to_slice()", i),
+            BenchmarkId::new("itoaaa::write_to_slice()", i),
             n,
             |b, n| {
                 b.iter(|| {
@@ -63,7 +59,7 @@ where
         );
 
         group.bench_with_input(
-            BenchmarkId::new("3.2.itoaaa: write_to_string()", i),
+            BenchmarkId::new("itoaaa::write_to_string()", i),
             n,
             |b, n| {
                 b.iter(|| {

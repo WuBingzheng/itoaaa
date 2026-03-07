@@ -1,3 +1,16 @@
+/// Write the integer to the slice in decimal format.
+///
+/// Return `Ok` if the slice is long enough, containing the length
+/// of formatted string. Return `Err` otherwise, containing the
+/// needed length too.
+///
+/// # Examples:
+///
+/// ```
+/// let mut buf: [u8; 100] = [0; 100];
+/// let len = itoaaa::write_to_slice(1234, &mut buf).unwrap();
+/// assert_eq!(str::from_utf8(&buf[..len]).unwrap(), "1234");
+/// ```
 #[inline]
 pub fn write_to_slice(n: impl Integer, buf: &mut [u8]) -> Result<usize, usize> {
     let (neg, abs) = n.unsigned_abs();
@@ -16,6 +29,14 @@ pub fn write_to_slice(n: impl Integer, buf: &mut [u8]) -> Result<usize, usize> {
     Ok(len)
 }
 
+/// Write the integer to the slice in decimal format, without checking
+/// the length of slice.
+///
+/// Return the length of formatted string.
+///
+/// # Safety:
+///
+/// You must make sure the length of slice is enough.
 #[inline]
 pub unsafe fn unchecked_write_to_slice(n: impl Integer, buf: &mut [u8]) -> usize {
     let (neg, abs) = n.unsigned_abs();
@@ -31,6 +52,15 @@ pub unsafe fn unchecked_write_to_slice(n: impl Integer, buf: &mut [u8]) -> usize
     len
 }
 
+/// Append the integer to the string in decimal format.
+///
+/// # Examples:
+///
+/// ```
+/// let mut s = String::new();
+/// itoaaa::write_to_string(1234, &mut s);
+/// assert_eq!(s, "1234");
+/// ```
 #[inline]
 pub fn write_to_string(n: impl Integer, s: &mut String) {
     let (neg, abs) = n.unsigned_abs();
@@ -50,6 +80,12 @@ pub fn write_to_string(n: impl Integer, s: &mut String) {
     }
 }
 
+/// Append the integer to the string in decimal format, without
+/// checking the capacity of string.
+///
+/// # Safety:
+///
+/// You must make sure the string have enough available capacity.
 #[inline]
 pub unsafe fn unchecked_write_to_string(n: impl Integer, s: &mut String) {
     let (neg, abs) = n.unsigned_abs();
