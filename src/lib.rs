@@ -68,11 +68,7 @@ pub unsafe fn unchecked_write_to_string(n: impl Integer, s: &mut String) {
     }
 }
 
-pub trait Unsigned: Copy {
-    fn dump_len(self) -> usize;
-    unsafe fn unchecked_dump(self, buf: &mut [u8]);
-}
-
+// === trait Integer ===
 pub trait Integer {
     type Unsigned: Unsigned;
     fn unsigned_abs(self) -> (usize, Self::Unsigned);
@@ -106,47 +102,10 @@ impl_integer!(i32, u32);
 impl_integer!(i64, u64);
 impl_integer!(i128, u128);
 
-impl Unsigned for u128 {
-    #[inline]
-    fn dump_len(self) -> usize {
-        let t = (128 - (self | 1).leading_zeros()) as usize * 1233 >> 12;
-        t + (self >= POWERS_U128[t]) as usize
-    }
-
-    #[inline]
-    unsafe fn unchecked_dump(self, buf: &mut [u8]) {
-        let mut offset = buf.len();
-        let mut remain = self;
-
-        loop {
-            if let Ok(n64) = u64::try_from(remain) {
-                unsafe { n64.unchecked_dump(&mut buf[..offset]) };
-                return;
-            }
-
-            // Take the 16 least-significant decimals.
-            let (quot_1e16, mut mod_1e16) = div_rem_1e16(remain);
-
-            for _ in 0..4 {
-                offset -= 4;
-
-                // pull two pairs
-                let quad = (mod_1e16 % 1_00_00) as usize;
-                mod_1e16 /= 1_00_00;
-
-                let pair1 = quad / 100;
-                let pair2 = quad % 100;
-                unsafe {
-                    *buf.get_unchecked_mut(offset) = digit(pair1 * 2);
-                    *buf.get_unchecked_mut(offset + 1) = digit(pair1 * 2 + 1);
-                    *buf.get_unchecked_mut(offset + 2) = digit(pair2 * 2);
-                    *buf.get_unchecked_mut(offset + 3) = digit(pair2 * 2 + 1);
-                }
-            }
-
-            remain = quot_1e16;
-        }
-    }
+// === trait Unsigned ===
+pub trait Unsigned: Copy {
+    fn dump_len(self) -> usize;
+    unsafe fn unchecked_dump(self, buf: &mut [u8]);
 }
 
 // general implements for u16, u32, and u64
@@ -213,6 +172,49 @@ impl_unsigned!(u8, POWERS_U8);
 impl_unsigned!(u16, POWERS_U16);
 impl_unsigned!(u32, POWERS_U32);
 impl_unsigned!(u64, POWERS_U64);
+
+impl Unsigned for u128 {
+    #[inline]
+    fn dump_len(self) -> usize {
+        let t = (128 - (self | 1).leading_zeros()) as usize * 1233 >> 12;
+        t + (self >= POWERS_U128[t]) as usize
+    }
+
+    #[inline]
+    unsafe fn unchecked_dump(self, buf: &mut [u8]) {
+        let mut offset = buf.len();
+        let mut remain = self;
+
+        loop {
+            if let Ok(n64) = u64::try_from(remain) {
+                unsafe { n64.unchecked_dump(&mut buf[..offset]) };
+                return;
+            }
+
+            // Take the 16 least-significant decimals.
+            let (quot_1e16, mut mod_1e16) = div_rem_1e16(remain);
+
+            for _ in 0..4 {
+                offset -= 4;
+
+                // pull two pairs
+                let quad = (mod_1e16 % 1_00_00) as usize;
+                mod_1e16 /= 1_00_00;
+
+                let pair1 = quad / 100;
+                let pair2 = quad % 100;
+                unsafe {
+                    *buf.get_unchecked_mut(offset) = digit(pair1 * 2);
+                    *buf.get_unchecked_mut(offset + 1) = digit(pair1 * 2 + 1);
+                    *buf.get_unchecked_mut(offset + 2) = digit(pair2 * 2);
+                    *buf.get_unchecked_mut(offset + 3) = digit(pair2 * 2 + 1);
+                }
+            }
+
+            remain = quot_1e16;
+        }
+    }
+}
 
 // === powers ===
 const POWERS_U8: [u8; 3] = [1, 10_u8.pow(1), 10_u8.pow(2)];
@@ -354,7 +356,7 @@ mod tests {
         T: Integer + Copy + std::fmt::Display + std::fmt::Debug,
     {
         let mut buf: [u8; 40] = [0; 40];
-        let pos = dump(n, &mut buf).unwrap();
+        let pos = write_to_slice(n, &mut buf).unwrap();
         assert_eq!(str::from_utf8(&buf[..pos]).unwrap(), format!("{n}"));
     }
 
