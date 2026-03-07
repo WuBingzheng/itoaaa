@@ -3,22 +3,23 @@ This crate prints primitive integers to slice or string in decimal format.
 Compared to [standard format](https://doc.rust-lang.org/std/fmt/index.html),
 this is much faster (about 5X).
 
-Compared to [`itoa`](https://docs.rs/itoa) crate which prints to an internal buffer, this crate
-prints to specified buffer directly. In some cases, this avoids one memory
-copy which is as expensive as the conversion itself.
+Compared to [`itoa`](https://docs.rs/itoa) crate which prints to an internal
+buffer, this crate prints to specified buffer directly. In some cases, this
+avoids one memory copy which is as expensive as the conversion itself.
 
-Compared to [`itoap`](https://docs.rs/itoap) crate which also prints to specified buffer, this
-crate has similar APIs and performance. They are different implementation
-algorithms.
+Compared to [`itoap`](https://docs.rs/itoap) crate which also prints to
+specified buffer, this crate has same functionality and similar APIs.
+They are different implementation algorithms, and this crate is slightly
+faster.
 
 
 # Usage
 
 There are four APIs. Two of them are safe, while the other two are unsafe
-because they do not check the length of specified buffer or string, but
+because they do not check the length of specified slice or string, but
 they are slightly faster.
 
-Use [`write_to_slice`] to print to buffer:
+Use [`write_to_slice`] to print to slice:
 
 ```rust
 let mut buf: [u8; 10] = [0; 10];
@@ -47,7 +48,7 @@ This presents the benchmark results for printing u64 values using three crates:
 of each function, lower values indicate higher speed. The horizontal axis denotes
 the number of decimal digits in the test integers.
 
-![Benchmark result](https://github.com/WuBingzheng/itoaaa/blob/main/benches/bench-u64.svg)
+![Benchmark result](https://raw.githubusercontent.com/WuBingzheng/itoaaa/refs/heads/main/benches/bench-u64.svg)
 
 Overall, the three crates have similar performance. The execution times of `itoa`
 and `itoaaa` show a nearly linear correlation with the number of digits. In
@@ -72,12 +73,8 @@ cargo bench
 open target/criterion/reports/index.html # or use your browser to open this
 ```
 
-The standard format method is not shown in the chart because it is about 5X
-slower, which would clutter the chart. The memory copy required by `itoa` is
-also not shown, as it is also slow, as much as the conversion itself.
-Only the u64 test results are shown here. By running the tests yourself,
-you can see more comprehensive results.
-
+By running the tests yourself, you can see more results, about more integer
+types and more APIs.
 
 # License
 
