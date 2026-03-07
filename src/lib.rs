@@ -1,5 +1,5 @@
 #[inline]
-pub fn dump(n: impl Integer, buf: &mut [u8]) -> Result<usize, usize> {
+pub fn write_to_slice(n: impl Integer, buf: &mut [u8]) -> Result<usize, usize> {
     let (neg, abs) = n.unsigned_abs();
     let len = neg + abs.dump_len();
     if buf.len() < len {
@@ -17,7 +17,22 @@ pub fn dump(n: impl Integer, buf: &mut [u8]) -> Result<usize, usize> {
 }
 
 #[inline]
-pub fn dump_to_string(n: impl Integer, s: &mut String) {
+pub unsafe fn unchecked_write_to_slice(n: impl Integer, buf: &mut [u8]) -> usize {
+    let (neg, abs) = n.unsigned_abs();
+    let len = neg + abs.dump_len();
+
+    // SAFETY: buf[neg..len].len() == n.dump_len()
+    unsafe {
+        if neg != 0 {
+            *buf.get_unchecked_mut(0) = b'-';
+        }
+        abs.unchecked_dump(&mut buf[neg..len]);
+    }
+    len
+}
+
+#[inline]
+pub fn write_to_string(n: impl Integer, s: &mut String) {
     let (neg, abs) = n.unsigned_abs();
     let dump_len = neg + abs.dump_len();
 
@@ -27,6 +42,24 @@ pub fn dump_to_string(n: impl Integer, s: &mut String) {
         let v = s.as_mut_vec();
         let origin_len = v.len();
         v.reserve(dump_len);
+        v.set_len(origin_len + dump_len);
+        if neg != 0 {
+            *v.get_unchecked_mut(origin_len) = b'-';
+        }
+        abs.unchecked_dump(&mut v[neg + origin_len..]);
+    }
+}
+
+#[inline]
+pub unsafe fn unchecked_write_to_string(n: impl Integer, s: &mut String) {
+    let (neg, abs) = n.unsigned_abs();
+    let dump_len = neg + abs.dump_len();
+
+    // SAFETY: digits are valid charactors
+    // SAFETY: v[neg+origin_len..].len() == n.dump_len()
+    unsafe {
+        let v = s.as_mut_vec();
+        let origin_len = v.len();
         v.set_len(origin_len + dump_len);
         if neg != 0 {
             *v.get_unchecked_mut(origin_len) = b'-';
