@@ -4,15 +4,16 @@ use std::hint::black_box;
 
 fn bench_encode<T>(c: &mut Criterion, inputs: &[T], name: &str)
 where
-    T: std::fmt::Display + itoa::Integer + itoa_slice::Integer,
+    T: std::fmt::Display + itoa::Integer + itoaaa::Integer + itoap::Integer,
 {
     let mut group = c.benchmark_group(name);
 
     let mut s = String::with_capacity(100);
-    let mut buf: [u8; 100] = [0; 100];
+    let mut v = Vec::new();
+    v.resize(100, 0);
 
     for (i, n) in inputs.iter().enumerate() {
-        group.bench_with_input(BenchmarkId::new("std", i), n, |b, n| {
+        group.bench_with_input(BenchmarkId::new("0.std", i), n, |b, n| {
             b.iter(|| {
                 s.clear();
                 write!(&mut s, "{}", *n).unwrap();
@@ -20,36 +21,58 @@ where
             })
         });
 
-        group.bench_with_input(BenchmarkId::new("itoa", i), n, |b, n| {
+        group.bench_with_input(BenchmarkId::new("1.1.itoa", i), n, |b, n| {
             b.iter(|| {
                 let mut buffer = itoa::Buffer::new();
                 black_box(buffer.format(*n));
             })
         });
 
-        group.bench_with_input(BenchmarkId::new("itoa + memcpy", i), n, |b, n| {
-            b.iter(|| {
-                let mut buffer = itoa::Buffer::new();
-                let s = buffer.format(*n);
-                buf[..s.len()].copy_from_slice(s.as_bytes());
-                black_box(buf);
-            })
-        });
+        group.bench_with_input(
+            BenchmarkId::new("2.1.itoap: write_to_ptr()", i),
+            n,
+            |b, n| {
+                b.iter(|| {
+                    let pos = unsafe { itoap::write_to_ptr(v.as_mut_ptr() as *mut u8, *n) };
+                    black_box(&v[..pos]);
+                })
+            },
+        );
 
-        group.bench_with_input(BenchmarkId::new("itoa-slice", i), n, |b, n| {
-            b.iter(|| {
-                let pos = itoa_slice::dump(*n, &mut buf).unwrap();
-                black_box(&buf[..pos]);
-            })
-        });
+        group.bench_with_input(
+            BenchmarkId::new("2.2.itoap: write_to_string()", i),
+            n,
+            |b, n| {
+                b.iter(|| {
+                    s.clear();
+                    itoap::write_to_string(&mut s, *n);
+                    black_box(&s);
+                })
+            },
+        );
 
-        group.bench_with_input(BenchmarkId::new("itoa-slice: to_string", i), n, |b, n| {
-            b.iter(|| {
-                s.clear();
-                itoa_slice::dump_to_string(*n, &mut s);
-                black_box(&s);
-            })
-        });
+        group.bench_with_input(
+            BenchmarkId::new("3.1.itoaaa: write_to_slice()", i),
+            n,
+            |b, n| {
+                b.iter(|| {
+                    let pos = itoaaa::write_to_slice(*n, &mut v).unwrap();
+                    black_box(&v[..pos]);
+                })
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("3.2.itoaaa: write_to_string()", i),
+            n,
+            |b, n| {
+                b.iter(|| {
+                    s.clear();
+                    itoaaa::write_to_string(*n, &mut s);
+                    black_box(&s);
+                })
+            },
+        );
     }
 
     // done
@@ -87,6 +110,16 @@ fn criterion_benchmark(c: &mut Criterion) {
         12345678901234567890123456,
         123456789012345678901234567,
         1234567890123456789012345678,
+        12345678901234567890123456789,
+        123456789012345678901234567890,
+        1234567890123456789012345678901,
+        12345678901234567890123456789012,
+        123456789012345678901234567890123,
+        1234567890123456789012345678901234,
+        12345678901234567890123456789012345,
+        123456789012345678901234567890123456,
+        1234567890123456789012345678901234568,
+        12345678901234567890123456789012345678,
     ];
 
     let inputs_u32: Vec<u32> = inputs[..11].iter().map(|x| *x as u32).collect();
@@ -95,10 +128,10 @@ fn criterion_benchmark(c: &mut Criterion) {
     let inputs_i32: Vec<i32> = inputs[..11].iter().map(|x| -(*x as i32)).collect();
     bench_encode(c, &inputs_i32, "i32");
 
-    let inputs_u64: Vec<u64> = inputs[..29].iter().map(|x| *x as u64).collect();
+    let inputs_u64: Vec<u64> = inputs[..21].iter().map(|x| *x as u64).collect();
     bench_encode(c, &inputs_u64, "u64");
 
-    let inputs_i64: Vec<i64> = inputs[..29].iter().map(|x| -(*x as i64)).collect();
+    let inputs_i64: Vec<i64> = inputs[..20].iter().map(|x| -(*x as i64)).collect();
     bench_encode(c, &inputs_i64, "i64");
 
     bench_encode(c, &inputs, "u128");
