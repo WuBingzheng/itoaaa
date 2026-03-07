@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 /// Write the integer to the slice in decimal format.
 ///
 /// Return `Ok` if the slice is long enough, containing the length
