@@ -1,4 +1,10 @@
+#![no_std]
 #![doc = include_str!("../README.md")]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+#[cfg(feature = "alloc")]
+use alloc::string::String;
 
 /// Write the integer to the slice in decimal format.
 ///
@@ -63,6 +69,7 @@ pub unsafe fn unchecked_write_to_slice(n: impl Integer, buf: &mut [u8]) -> usize
 /// itoaaa::write_to_string(1234, &mut s);
 /// assert_eq!(s, "1234");
 /// ```
+#[cfg(feature = "alloc")]
 #[inline]
 pub fn write_to_string(n: impl Integer, s: &mut String) {
     let (neg, abs) = n.unsigned_abs();
@@ -88,6 +95,7 @@ pub fn write_to_string(n: impl Integer, s: &mut String) {
 /// # Safety:
 ///
 /// You must make sure the string have enough available capacity.
+#[cfg(feature = "alloc")]
 #[inline]
 pub unsafe fn unchecked_write_to_string(n: impl Integer, s: &mut String) {
     let (neg, abs) = n.unsigned_abs();
@@ -388,14 +396,15 @@ fn u128_mulhi(x: u128, y: u128) -> u128 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    extern crate alloc;
 
     fn test<T>(n: T)
     where
-        T: Integer + Copy + std::fmt::Display + std::fmt::Debug,
+        T: Integer + Copy + core::fmt::Display + core::fmt::Debug,
     {
         let mut buf: [u8; 40] = [0; 40];
         let pos = write_to_slice(n, &mut buf).unwrap();
-        assert_eq!(str::from_utf8(&buf[..pos]).unwrap(), format!("{n}"));
+        assert_eq!(str::from_utf8(&buf[..pos]).unwrap(), alloc::format!("{n}"));
     }
 
     #[test]
@@ -407,6 +416,8 @@ mod tests {
         test(i128::MIN);
         test(i128::MAX);
         test(-i128::MAX);
+        test(10000);
+        test(10000000);
 
         let mut n = u8::MAX;
         while n != 0 {
@@ -428,6 +439,16 @@ mod tests {
             n /= 10;
         }
 
+        let mut n = u64::MAX;
+        while n != 0 {
+            test(n);
+            if let Ok(i) = i64::try_from(n) {
+                test(i);
+                test(-i);
+            }
+            n /= 7;
+        }
+
         let mut n = u128::MAX;
         while n != 0 {
             test(n);
@@ -436,6 +457,16 @@ mod tests {
                 test(-i);
             }
             n /= 10;
+        }
+
+        let mut n = u128::MAX;
+        while n != 0 {
+            test(n);
+            if let Ok(i) = i128::try_from(n) {
+                test(i);
+                test(-i);
+            }
+            n /= 7;
         }
     }
 }
