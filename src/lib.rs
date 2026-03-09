@@ -156,12 +156,11 @@ pub trait Unsigned: Copy {
 
 // general implements for u16, u32, and u64
 macro_rules! impl_unsigned {
-    ($ty:ty, $bit_digits:expr) => {
+    ($ty:ty) => {
         impl Unsigned for $ty {
             #[inline]
             fn dump_len(self) -> usize {
-                let t = (<$ty>::BITS - (self | 1).leading_zeros()) as usize * 1233 >> 12;
-                t + (self >= $bit_digits[t]) as usize
+                (self | 1).ilog10() as usize + 1
             }
 
             // SAFETY: The caller must make sure: buf.len() == self.dump_len()
@@ -214,16 +213,15 @@ macro_rules! impl_unsigned {
     };
 }
 
-impl_unsigned!(u8, POWERS_U8);
-impl_unsigned!(u16, POWERS_U16);
-impl_unsigned!(u32, POWERS_U32);
-impl_unsigned!(u64, POWERS_U64);
+impl_unsigned!(u8);
+impl_unsigned!(u16);
+impl_unsigned!(u32);
+impl_unsigned!(u64);
 
 impl Unsigned for u128 {
     #[inline]
     fn dump_len(self) -> usize {
-        let t = (128 - (self | 1).leading_zeros()) as usize * 1233 >> 12;
-        t + (self >= POWERS_U128[t]) as usize
+        (self | 1).ilog10() as usize + 1
     }
 
     #[inline]
@@ -261,91 +259,6 @@ impl Unsigned for u128 {
         }
     }
 }
-
-// === powers ===
-const POWERS_U8: [u8; 3] = [1, 10_u8.pow(1), 10_u8.pow(2)];
-const POWERS_U16: [u16; 5] = [
-    0,
-    10_u16.pow(1),
-    10_u16.pow(2),
-    10_u16.pow(3),
-    10_u16.pow(4),
-];
-const POWERS_U32: [u32; 10] = [
-    0,
-    10_u32.pow(1),
-    10_u32.pow(2),
-    10_u32.pow(3),
-    10_u32.pow(4),
-    10_u32.pow(5),
-    10_u32.pow(6),
-    10_u32.pow(7),
-    10_u32.pow(8),
-    10_u32.pow(9),
-];
-const POWERS_U64: [u64; 20] = [
-    0,
-    10_u64.pow(1),
-    10_u64.pow(2),
-    10_u64.pow(3),
-    10_u64.pow(4),
-    10_u64.pow(5),
-    10_u64.pow(6),
-    10_u64.pow(7),
-    10_u64.pow(8),
-    10_u64.pow(9),
-    10_u64.pow(10),
-    10_u64.pow(11),
-    10_u64.pow(12),
-    10_u64.pow(13),
-    10_u64.pow(14),
-    10_u64.pow(15),
-    10_u64.pow(16),
-    10_u64.pow(17),
-    10_u64.pow(18),
-    10_u64.pow(19),
-];
-const POWERS_U128: [u128; 39] = [
-    0,
-    10_u128.pow(1),
-    10_u128.pow(2),
-    10_u128.pow(3),
-    10_u128.pow(4),
-    10_u128.pow(5),
-    10_u128.pow(6),
-    10_u128.pow(7),
-    10_u128.pow(8),
-    10_u128.pow(9),
-    10_u128.pow(10),
-    10_u128.pow(11),
-    10_u128.pow(12),
-    10_u128.pow(13),
-    10_u128.pow(14),
-    10_u128.pow(15),
-    10_u128.pow(16),
-    10_u128.pow(17),
-    10_u128.pow(18),
-    10_u128.pow(19),
-    10_u128.pow(20),
-    10_u128.pow(21),
-    10_u128.pow(22),
-    10_u128.pow(23),
-    10_u128.pow(24),
-    10_u128.pow(25),
-    10_u128.pow(26),
-    10_u128.pow(27),
-    10_u128.pow(28),
-    10_u128.pow(29),
-    10_u128.pow(20),
-    10_u128.pow(31),
-    10_u128.pow(32),
-    10_u128.pow(33),
-    10_u128.pow(34),
-    10_u128.pow(35),
-    10_u128.pow(36),
-    10_u128.pow(37),
-    10_u128.pow(38),
-];
 
 // SAFETY: caller must make sure: p < 200
 #[inline]
@@ -466,7 +379,7 @@ mod tests {
                 test(i);
                 test(-i);
             }
-            n /= 7;
+            n /= 3;
         }
     }
 }
